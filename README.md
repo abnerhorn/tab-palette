@@ -76,7 +76,7 @@ Give your agent the [setup prompt and checklist](docs/AGENT_SETUP.md). It can cl
 
 ## Updates
 
-**Upgrading from the private prototype?** Version 1.1.0 adds a native focused-window safety check. Disable the old extension, run `python3 install.py --apply --rebuild-native` from this repository, load/reload this repository’s extension, and re-add the installed app in Accessibility. Older companions are not compatible with this public version.
+**Upgrading from the private prototype?** Version 1.1.0 adds a native focused-window safety check. Remove the old unpacked extension, run `python3 install.py --apply --rebuild-native` from this repository, load this repository’s `extension/` folder, and re-add the installed app in Accessibility. Reloading an old extension card does not change its source folder. Removing the extension leaves your browser tabs, history, and bookmarks intact. Older companions are not compatible with this public version.
 
 ```sh
 git pull --ff-only

@@ -35,4 +35,4 @@ macOS Accessibility approval belongs to the person using the computer. An agent 
 
 No browser automation server, remote service, private key, `.env`, or credentials are required. Exact Cmd+T works only with Google Chrome in front. The local companion does not run as a login item; Chrome starts it through native messaging.
 
-If the installer reports an older private prototype, disable that extension before using `--apply --rebuild-native`. Explain that this native upgrade will need the person to re-add the installed app in Accessibility. Do not work around an incompatible native host by removing its version check.
+If the installer reports an older private prototype, remove the old unpacked extension before using `--apply --rebuild-native`, then load this repository’s `extension/` folder. Reloading the old card does not change its source folder. Explain that this native upgrade will need the person to re-add the installed app in Accessibility. Do not work around an incompatible native host by removing its version check.
