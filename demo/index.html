@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tab Palette — keyboard navigation demo</title>
+  <link rel="stylesheet" href="stage.css">
+  <link rel="stylesheet" href="palette-source.css">
+  <link rel="stylesheet" href="scene.css">
+</head>
+<body>
+  <div id="stage" data-motion-sampled>
+    <div id="app-window">
+      <div id="app-plane">
+        <header class="browser-chrome">
+          <div class="tabstrip">
+            <div class="traffic-lights"><i></i><i></i><i></i></div>
+            <div class="browser-tabs" id="browser-tabs"></div>
+            <span class="new-tab-button" aria-hidden="true">+</span>
+          </div>
+          <div class="browser-toolbar">
+            <span class="browser-control">‹</span><span class="browser-control forward">›</span><span class="reload-icon">↻</span>
+            <div class="address-bar"><img class="site-controls" src="assets/site-controls.png" alt=""><span id="browser-url"></span><span class="address-star">☆</span></div>
+            <img class="extension-mark" src="assets/extension-mark.png" alt="">
+            <span class="browser-profile"></span><span class="browser-menu">⋮</span>
+          </div>
+          <div class="bookmarks-bar"><span class="bookmark-label"><img src="assets/folder.png" alt="">Product</span><span class="bookmark-label"><img src="assets/folder.png" alt="">Design</span><span class="bookmark-label"><img src="assets/folder.png" alt="">Development</span><span class="bookmarks-fill"></span><span class="bookmark-label all-bookmarks">▥ All Bookmarks</span></div>
+        </header>
+        <main id="browser-page"></main>
+        <div id="page-dim"></div>
+        <div id="palette-layer">
+          <section class="palette" aria-label="Tab Palette">
+            <header class="search-header">
+              <div class="palette-mark"><img src="assets/palette-mark.png" alt=""></div>
+              <input id="query" autocomplete="off" spellcheck="false" placeholder="Search tabs or go anywhere…" aria-label="Search tabs or go anywhere">
+              <span class="escape-button">esc</span>
+            </header>
+            <div class="results-scroll"><div id="palette-results"></div></div>
+            <footer class="palette-footer">
+              <div class="footer-action"><span class="action-symbol" id="palette-action-symbol">⇥</span><span id="palette-action-label">Switch tab</span><kbd>↵</kbd></div>
+              <div class="keyboard-hint"><kbd>↑</kbd><kbd>↓</kbd><span>navigate</span></div>
+            </footer>
+          </section>
+        </div>
+      </div>
+    </div>
+    <div id="key-cue" aria-hidden="true"><kbd id="cue-modifier">⌘</kbd><kbd id="cue-key">T</kbd></div>
+    <div id="loop-veil"></div>
+  </div>
+  <script src="motion-core.js"></script>
+  <script src="scene.js"></script>
+</body>
+</html>

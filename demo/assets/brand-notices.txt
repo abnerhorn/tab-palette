@@ -1,0 +1,14 @@
+Brand icon geometry is sourced from Simple Icons:
+https://github.com/simple-icons/simple-icons
+
+Simple Icons is released under the CC0 1.0 Universal Public Domain Dedication:
+https://creativecommons.org/publicdomain/zero/1.0/
+https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md
+
+The icons in this demo retain their original geometry and use local foreground
+fill colors for the dark UI. The icons are included only to identify public
+navigation destinations. Brand names, logos, and trademarks remain the property
+of their respective owners; no affiliation or endorsement is implied.
+
+Files: github.svg, linear.svg, vercel.svg, figma.svg, supabase.svg,
+mdnwebdocs.svg, notion.svg, stripe.svg, redis.svg, docker.svg.

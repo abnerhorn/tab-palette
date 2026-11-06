@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "name": "Tab Palette",
+  "description": "A keyboard-first tab switcher and browser search palette.",
+  "version": "1.1.0",
+  "minimum_chrome_version": "120",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvFjp+JOLcbsvL9r4ul1RI1V3vVmDcIrUIlPLNIMqfOiibtsKu77tosVuKgtAl8+O7LUI2EtkcubRauAHpGk8Nxw/sFvYQyYpOORp54ffMM4xRTK2aQQ3assIxClBmwAuyNUhsz1TDsruX6HQ48KFd2IaEQyP3C4p0gL33RI0y/lXPKJcvVVYOfG7GlbqxIeggWFo+09psK+kn9VsQZUVIKDjZ+6ixvYJKHhI/9oTBTCibw7BdAAK86xKp1R54E9BUI3Mlwh0GVHGzuI64KX+3DHTJStpHfWcEHjogadDWFsgyM1AuRzHHF571zlABWSHbHVObyzgYKIWuyT9YXQ0tQIDAQAB",
+  "permissions": [
+    "tabs",
+    "tabGroups",
+    "history",
+    "bookmarks",
+    "search",
+    "storage",
+    "nativeMessaging",
+    "favicon"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Open Tab Palette"
+  },
+  "commands": {
+    "open-palette": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+K",
+        "mac": "Command+Shift+K"
+      },
+      "description": "Open Tab Palette"
+    }
+  },
+  "chrome_url_overrides": {
+    "newtab": "bridge.html"
+  },
+  "optional_host_permissions": [
+    "https://suggestqueries.google.com/*"
+  ],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  }
+}

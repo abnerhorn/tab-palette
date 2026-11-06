@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="588" viewBox="0 0 1080 588">
+  <defs>
+    <linearGradient id="base" x2="1" y2="1"><stop stop-color="#292652"/><stop offset=".52" stop-color="#6261a4"/><stop offset="1" stop-color="#172d49"/></linearGradient>
+    <linearGradient id="ribbon" x1="0" y1="1" x2="1" y2="0"><stop stop-color="#bd6c8b"/><stop offset=".35" stop-color="#837fbf"/><stop offset=".75" stop-color="#8fadd3"/><stop offset="1" stop-color="#7cc6d0"/></linearGradient>
+    <linearGradient id="rose" x2=".8" y2="1"><stop stop-color="#f0baa6"/><stop offset=".45" stop-color="#db88a7"/><stop offset="1" stop-color="#8475b4"/></linearGradient>
+    <linearGradient id="blue" x1=".3" y1="0" x2=".7" y2="1"><stop stop-color="#354783"/><stop offset=".55" stop-color="#354a79"/><stop offset="1" stop-color="#14283d"/></linearGradient>
+    <radialGradient id="light"><stop stop-color="#dcd7f8" stop-opacity=".38"/><stop offset="1" stop-color="#dcd7f8" stop-opacity="0"/></radialGradient>
+    <filter id="soft"><feGaussianBlur stdDeviation="15"/></filter>
+  </defs>
+  <path fill="url(#base)" d="M0 0h1080v588H0z"/>
+  <path fill="url(#ribbon)" d="M-100 180C140 40 385 325 635 211S932-47 1210 41v547H-100Z"/>
+  <path fill="url(#rose)" d="M-100 452C125 231 312 269 487 360S790 568 1158 293v355H-100Z"/>
+  <path fill="url(#blue)" d="M-100 530C159 315 300 417 516 487s378 70 652-70v231H-100Z"/>
+  <path fill="#d7dafa" opacity=".18" filter="url(#soft)" d="M-45 230C178 102 386 361 635 238S900 7 1146 58v27C902 25 878 144 647 265S178 135-45 258Z"/>
+  <ellipse cx="723" cy="80" rx="480" ry="322" fill="url(#light)"/>
+</svg>

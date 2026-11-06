@@ -1,0 +1,10 @@
+/* Approved artwork composition. Product typography/tokens are separate. */
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 1080px; height: 588px; overflow: hidden; background: #f0f0f0; }
+#stage { --app-width: 1600px; --app-height: 820px; --app-scale: .6; position: relative; width: 1080px; height: 588px; overflow: hidden; background: #f0f0f0; }
+#app-window { position: absolute; left: 60px; top: 48px; width: 960px; height: 492px; overflow: hidden; border: 1px solid rgba(36,41,44,.09); border-radius: 14px; background: #fff; box-shadow: 0 3px 6px rgba(28,37,41,.025), 0 18px 30px -14px rgba(28,37,41,.19); }
+#app-plane { position: relative; width: var(--app-width); height: var(--app-height); transform: scale(var(--app-scale)); transform-origin: top left; overflow: hidden; }
+#loop-veil { position: absolute; inset: 0; z-index: 50; pointer-events: none; background: #f0f0f0; opacity: 0; }
+[data-motion-pointer] { position: absolute; z-index: 40; pointer-events: none; transform-origin: 4px 3px; filter: drop-shadow(0 2px 2px #0002); }
+[data-motion-sampled], [data-motion-sampled] * { transition: none !important; animation: none !important; }
+@media (prefers-reduced-motion: reduce) { [data-motion-pointer] { display: none; } }

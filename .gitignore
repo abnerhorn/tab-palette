@@ -1,0 +1,16 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+.build/
+*.app/
+installation backups/
+node_modules/
+*.log
+.env*
+!.env.example
+*-capture/
+frames/
+/work/
+/media/*.mp4
+/media/*.webm
+/media/*.json

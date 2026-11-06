@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <title>Tab Palette</title>
+    <link rel="stylesheet" href="palette.css">
+    <script type="module" src="palette.js"></script>
+  </head>
+  <body>
+    <div class="backdrop" id="backdrop" aria-hidden="true"></div>
+    <main class="shell">
+      <section class="palette" role="dialog" aria-modal="true" aria-label="Tab Palette">
+        <header class="search-header">
+          <div class="palette-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="m12 2 9 10-9 10L3 12 12 2Z" stroke="currentColor" stroke-width="1.4"/><path d="m12 7 4.5 5-4.5 5L7.5 12 12 7Z" fill="currentColor"/></svg>
+          </div>
+          <input id="query" type="text" role="combobox" aria-label="Search tabs, history, bookmarks, or the web" aria-controls="results" aria-expanded="true" aria-autocomplete="list" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search or Enter URL…">
+          <button class="icon-button help-button" id="help-button" type="button" aria-label="Keyboard shortcuts" aria-expanded="false" title="Keyboard shortcuts">?</button>
+          <button class="escape-button" id="close-button" type="button" aria-label="Close palette" title="Close palette">esc</button>
+        </header>
+
+        <div class="keyboard-help" id="keyboard-help" hidden>
+          <div><span>Move through results</span><span><kbd>↑</kbd><kbd>↓</kbd></span></div>
+          <div><span>Open selected result</span><kbd>↵</kbd></div>
+          <div><span>Open in a new tab</span><span><kbd>⇧</kbd><kbd>↵</kbd></span></div>
+          <div><span>Jump directly to a tab</span><span><kbd id="help-modifier">⌥</kbd><kbd>1…9, 0, A…Z</kbd></span></div>
+          <p>Shortcuts stay attached to the original tab order. For two-character shortcuts, hold the modifier and type both characters.</p>
+        </div>
+
+        <div class="results-scroll" id="results-scroll">
+          <div id="results" role="listbox" aria-label="Tabs and suggestions"></div>
+          <div class="empty-state" id="empty-state" hidden>
+            <div class="empty-symbol" aria-hidden="true">⌕</div>
+            <h2 id="empty-title">No matching tabs</h2>
+            <p id="empty-description">Try a title, website, or a different search.</p>
+          </div>
+        </div>
+
+        <footer class="palette-footer">
+          <div class="footer-action"><span class="action-symbol" id="action-symbol" aria-hidden="true">↗</span><span id="action-label">Switch tab</span><kbd>↵</kbd></div>
+          <div class="footer-right"><span class="status" id="status">Loading tabs</span><span class="keyboard-hint"><kbd>↑</kbd><kbd>↓</kbd><span>navigate</span></span></div>
+        </footer>
+        <div class="error-banner" id="error-banner" role="status" hidden></div>
+      </section>
+      <p class="outside-hint" id="outside-hint">Your tabs. One place.</p>
+    </main>
+    <div id="announcer" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+  </body>
+</html>
