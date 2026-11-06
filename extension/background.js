@@ -1,5 +1,8 @@
 import {buildSuggestions, allowedURL} from './search.mjs';
 import {getTabFavicons} from './favicons.mjs';
+import {createHistoryCache} from './history-cache.mjs';
+
+const historyCache=createHistoryCache(chrome.history);
 
 const HOST = 'ai.tesar.tab_palette';
 const MINIMUM_HOST_VERSION = '1.1.0';
@@ -42,6 +45,7 @@ async function normalWindow(preferred) {
 }
 
 async function snapshot(preferred) {
+  void historyCache.prewarm();
   return snapshotWindow(await normalWindow(preferred));
 }
 
@@ -75,32 +79,68 @@ async function hotkeySnapshot() {
     const current = await chrome.windows.get(win.id);
     if (current.focused!==true || current.type!=='normal' || current.incognito===true) return denied;
     lastWindowId=win.id;
+    void historyCache.prewarm();
     return {...state,eligible:true};
   } catch { return denied; }
 }
 
-async function search(query, requestId, sourceWindowId) {
+async function webSuggestionsEnabled(text) {
+  if(text.length>200 || /^\w+:\/\//.test(text))return false;
+  try {
+    const settings=await chrome.storage.local.get({webSuggestions:false});
+    return settings.webSuggestions===true && await chrome.permissions.contains({origins:['https://suggestqueries.google.com/*']});
+  } catch { return false; }
+}
+
+async function searchTabURLs(sourceWindowId) {
+  // Search only needs URLs to avoid suggesting an already open page. A full
+  // snapshot also reads groups and favicon PNGs, which must never delay local
+  // history/bookmark results on every keystroke.
+  try {
+    const windowId=Number.isInteger(sourceWindowId)?sourceWindowId:(await normalWindow()).id;
+    const tabs=await chrome.tabs.query({windowId});
+    return tabs.filter(tab=>!isLauncher(tab)).map(tab=>({url:tab.url||tab.pendingUrl||''}));
+  } catch { return []; }
+}
+
+async function search(query, requestId, sourceWindowId, phase='local') {
   const text = String(query||'').trim().slice(0,1000);
-  if (!text) return {suggestions:[],requestId};
-  const [history,bookmarks,state] = await Promise.all([
-    chrome.history.search({text,startTime:0,maxResults:80}).catch(()=>[]),
-    chrome.bookmarks.search(text).catch(()=>[]),snapshot(sourceWindowId)
-  ]);
-  const suggestions=buildSuggestions(text,history,bookmarks,state.tabs);
-  const settings=await chrome.storage.local.get({webSuggestions:false});
-  const maySuggest=settings.webSuggestions && await chrome.permissions.contains({origins:['https://suggestqueries.google.com/*']}).catch(()=>false);
-  if(maySuggest && text.length<=200 && !/^\w+:\/\//.test(text)) {
-    try {
-      const response=await fetch(`https://suggestqueries.google.com/complete/search?client=chrome&q=${encodeURIComponent(text)}`,{credentials:'omit',referrerPolicy:'no-referrer',signal:AbortSignal.timeout(1400)});
-      const data=await response.json();
-      const existing=new Set(suggestions.filter(item=>item.type==='search').map(item=>item.query.toLocaleLowerCase()));
-      for(const query of (Array.isArray(data[1])?data[1]:[]).slice(0,5)) {
-        if(typeof query!=='string'||query.length>300||existing.has(query.toLocaleLowerCase()))continue;
-        suggestions.push({id:`web:${query}`,type:'search',title:query,query});existing.add(query.toLocaleLowerCase());
-      }
-    }catch{}
+  if (!text) return {suggestions:[],requestId,query:text,phase,webSuggestionsEnabled:false,needsHistoryRefresh:false};
+  if(phase==='web') {
+    const enabled=await webSuggestionsEnabled(text);
+    const suggestions=[];
+    if(enabled) {
+      try {
+        const response=await fetch(`https://suggestqueries.google.com/complete/search?client=chrome&q=${encodeURIComponent(text)}`,{credentials:'omit',referrerPolicy:'no-referrer',signal:AbortSignal.timeout(1400)});
+        const data=await response.json();
+        const existing=new Set([text.toLocaleLowerCase()]);
+        for(const query of (Array.isArray(data[1])?data[1]:[]).slice(0,5)) {
+          if(typeof query!=='string'||query.length>300||existing.has(query.toLocaleLowerCase()))continue;
+          suggestions.push({id:`web:${query}`,type:'search',title:query,query});existing.add(query.toLocaleLowerCase());
+        }
+      }catch{}
+    }
+    return {suggestions,requestId,query:text,phase:'web',webSuggestionsEnabled:enabled};
   }
-  return {suggestions,requestId};
+  if(phase==='history') {
+    const [fresh,bookmarks,openTabs,enabled]=await Promise.all([
+      historyCache.refine(text,sourceWindowId),chrome.bookmarks.search(text).catch(()=>[]),
+      searchTabURLs(sourceWindowId),webSuggestionsEnabled(text)
+    ]);
+    // Check again after the other Chrome reads: history may have been deleted
+    // after its query completed while bookmarks or tab metadata were pending.
+    const superseded=fresh.superseded || !historyCache.isCurrent(fresh);
+    return {suggestions:superseded?[]:buildSuggestions(text,fresh.history,bookmarks,openTabs),
+      requestId,query:text,phase:'history',webSuggestionsEnabled:enabled,needsHistoryRefresh:false,superseded};
+  }
+  // A cache miss must not make typing wait for Chrome's history database. The
+  // UI paints these rows, then asks for phase:'history' to fill in older matches.
+  void historyCache.prewarm();
+  const [bookmarks,openTabs,enabled]=await Promise.all([
+    chrome.bookmarks.search(text).catch(()=>[]),searchTabURLs(sourceWindowId),webSuggestionsEnabled(text)
+  ]);
+  return {suggestions:buildSuggestions(text,historyCache.matches(text),bookmarks,openTabs),
+    requestId,query:text,phase:'local',webSuggestionsEnabled:enabled,needsHistoryRefresh:true};
 }
 
 async function closePalette() {
@@ -192,7 +232,7 @@ async function handle(message,sender={}) {
     case 'launch': return openPalette(sender.tab?.windowId,sender.tab?.id);
     case 'snapshot': return snapshot(message.sourceWindowId);
     case 'hotkey-snapshot': return hotkeySnapshot();
-    case 'search': return search(message.query,message.requestId,message.sourceWindowId);
+    case 'search': return search(message.query,message.requestId,message.sourceWindowId,message.phase);
     case 'execute': return execute(message.item,message.disposition,message.sourceWindowId);
     case 'close': await closePalette();return {ok:true};
     default: throw new Error('Unknown launcher request.');
@@ -270,3 +310,4 @@ chrome.commands.onCommand.addListener(command=>{if(command==='open-palette')open
 chrome.runtime.onStartup.addListener(connectHost);
 chrome.runtime.onInstalled.addListener(connectHost);
 connectHost();
+void historyCache.prewarm();

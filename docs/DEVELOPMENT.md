@@ -6,6 +6,8 @@ The Manifest V3 extension owns Chrome API access. The optional Swift/AppKit comp
 
 `companion/bundle_native.py` produces a classic script for WebKit’s file-based loader from the extension modules. The installed UI cache is separate from the signed app so UI updates do not invalidate an existing Accessibility grant.
 
+`history-cache.mjs` keeps a bounded recent-history cache in memory, invalidates deleted entries, and coalesces deeper Chrome history queries. Search uses the existing native `search` message with `local`, `history`, and optional `web` phases. The first phase never waits for history scans, favicon/group reads, or a network response. The UI merges later results only for the current query and preserves a selection already made with the keyboard.
+
 ## Checks
 
 ```sh

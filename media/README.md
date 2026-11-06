@@ -1,6 +1,6 @@
 # Share assets
 
-Download the videos from the [latest GitHub release](https://github.com/abnerhorn/tab-palette/releases/latest):
+Download the videos from the [demo release](https://github.com/abnerhorn/tab-palette/releases/tag/v1.1.0):
 
 - `tab-palette-demo-x.mp4`: 1620 × 882, 30 fps, H.264, silent, ready to attach to a post.
 - `tab-palette-demo-master.mp4`: native 3240 × 1764 master, 30 fps, H.264, silent.

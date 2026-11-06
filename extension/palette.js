@@ -2,6 +2,7 @@ import {
   decorateTabs, filterTabs, displayDomain, normalizedSuggestion,
   physicalShortcutCharacter, selectionAfterUpdate,
   safeFaviconDataURL, navigationURL, navigationIntent, completionCandidate, directURLSuggestion,
+  normalizeText,
 } from './core.mjs';
 
 const $ = id => document.getElementById(id);
@@ -124,7 +125,9 @@ function receive(response) {
     const payload = unwrapResponse(response);
     if (payload.query === typedQuery.trim()) {
       searching = false;
-      suggestions = (payload.suggestions || []).map(normalizedSuggestion);
+      suggestions = payload.phase === 'web'
+        ? mergeWebSuggestions(suggestions, payload.suggestions || [], typedQuery)
+        : (payload.suggestions || []).map(normalizedSuggestion);
       maybeCompleteInput();
       render();
     }
@@ -220,13 +223,39 @@ function titleWithMatches(text, query) {
 }
 
 function maybeCompleteInput() {
-  if (completionSuppressed || !typedQuery || document.activeElement !== input) return;
+  if (completionSuppressed || selectionExplicit || !typedQuery || document.activeElement !== input) return;
   if (!inlineCompletion && (input.selectionStart !== input.value.length || input.selectionEnd !== input.value.length)) return;
   const candidate = completionCandidate(typedQuery, [...tabs, ...suggestions]);
   if (!candidate) return;
   inlineCompletion = candidate;
   input.value = candidate.display;
   input.setSelectionRange(typedQuery.length, candidate.display.length);
+}
+
+function retainedLocalSuggestions(previous, previousQuery, query, isDeletion) {
+  const before = normalizeText(previousQuery).trim();
+  const next = normalizeText(query).trim();
+  // This is only the list already visible in this opening of the palette,
+  // narrowed while its fresh Chrome lookup is in flight. No history index or
+  // cross-opening cache is kept. Broadening and deletion always start fresh.
+  if (isDeletion || !before || next.length <= before.length || !next.startsWith(before)) return [];
+  const tokens = next.split(/\s+/).filter(Boolean);
+  return previous.filter(item => ['history', 'bookmark'].includes(item.type)
+    && tokens.every(token => normalizeText(`${item.title} ${item.url || ''}`).includes(token))).slice(0, 8);
+}
+
+function mergeWebSuggestions(local, incoming, query) {
+  const seen = new Set([normalizeText(query).trim(), ...local.filter(item => item.type === 'search').map(item => normalizeText(item.query).trim())]);
+  const combined = [...local];
+  let added = 0;
+  for (const item of incoming) {
+    if (item?.type !== 'search' || typeof item.query !== 'string') continue;
+    const key = normalizeText(item.query).trim();
+    if (!key || seen.has(key)) continue;
+    seen.add(key); combined.push(normalizedSuggestion({ ...item, id: item.id ?? `web:${key}` }, combined.length));
+    if (++added === 5) break;
+  }
+  return combined;
 }
 
 function currentSuggestionRows() {
@@ -476,13 +505,19 @@ document.addEventListener('keyup', event => {
 
 function queryChanged(event, suppressCompletion = false) {
   clearTimeout(debounceTimer); clearTimeout(shortcutTimer); shortcutBuffer = '';
+  const previousQuery = typedQuery;
+  const previousSuggestions = suggestions;
   typedQuery = input.value;
   inlineCompletion = null;
   completionSuppressed = suppressCompletion || Boolean(event?.isComposing) || String(event?.inputType || '').startsWith('delete');
   selectionExplicit = false;
   const query = typedQuery.trim();
   const version = ++searchVersion;
-  selected = 0; suggestions = []; searching = Boolean(query);
+  const generation = paletteGeneration;
+  const isCurrent = () => generation === paletteGeneration && version === searchVersion && query === typedQuery.trim();
+  selected = 0;
+  suggestions = retainedLocalSuggestions(previousSuggestions, previousQuery, query, completionSuppressed);
+  searching = Boolean(query);
   $('error-banner').hidden = true;
   maybeCompleteInput();
   render(); scroll.scrollTop = 0;
@@ -492,19 +527,46 @@ function queryChanged(event, suppressCompletion = false) {
   debounceTimer = setTimeout(async () => {
     const requestId = ++requestCounter;
     try {
-      const result = unwrapResponse(await request({ type: 'search', query, requestId, sourceWindowId }));
-      if (version !== searchVersion || query !== typedQuery.trim()) return;
+      const result = unwrapResponse(await request({ type: 'search', phase: 'local', query, requestId, sourceWindowId }));
+      if (!isCurrent()) return;
       if (result?.error) throw new Error(result.error);
-      suggestions = (result?.suggestions || []).map(normalizedSuggestion);
+      let localRows = (result?.suggestions || []).map(normalizedSuggestion);
+      let webRows = [];
+      suggestions = localRows;
       maybeCompleteInput();
+      // Paint local Chrome results before starting the optional network phase.
+      // A slow or unavailable web provider must never hold history rows back.
+      searching = false;
+      render();
+      if (result?.needsHistoryRefresh === true) {
+        request({ type: 'search', phase: 'history', query, requestId: ++requestCounter, sourceWindowId })
+          .then(unwrapResponse)
+          .then(fresh => {
+            if (!isCurrent() || fresh?.error || fresh?.superseded) return;
+            localRows = (fresh?.suggestions || []).map(normalizedSuggestion);
+            suggestions = mergeWebSuggestions(localRows, webRows, query);
+            maybeCompleteInput();
+            render();
+          }).catch(() => { /* Fast local results remain usable if full history is unavailable. */ });
+      }
+      if (result?.webSuggestionsEnabled === true) {
+        request({ type: 'search', phase: 'web', query, requestId: ++requestCounter, sourceWindowId })
+          .then(unwrapResponse)
+          .then(web => {
+            if (!isCurrent() || web?.error) return;
+            webRows = web?.suggestions || [];
+            suggestions = mergeWebSuggestions(localRows, webRows, query);
+            render();
+          }).catch(() => { /* Local results remain usable if optional autocomplete fails. */ });
+      }
     } catch (error) {
-      if (version !== searchVersion) return;
+      if (!isCurrent()) return;
       suggestions = [normalizedSuggestion({ id: `fallback:${query}`, type: 'search', title: `Search the web for “${query}”`, query }, 0)];
       showError(error.message);
     } finally {
-      if (version === searchVersion) { searching = false; render(); }
+      if (isCurrent() && searching) { searching = false; render(); }
     }
-  }, 100);
+  }, 40);
 }
 
 input.addEventListener('input', queryChanged);

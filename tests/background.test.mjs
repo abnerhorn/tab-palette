@@ -32,12 +32,16 @@ globalThis.chrome={
   windows:{get:async id=>{if(closedWindowIds.has(id))throw Error('Window closed');return mockWindow(id);},getAll:async options=>{if(windowsQueryFails)throw Error('Cannot enumerate windows');return [1,2,3,4].filter(id=>!closedWindowIds.has(id)).map(mockWindow).filter(win=>!options.windowTypes||options.windowTypes.includes(win.type));},getLastFocused:async()=>mockWindow(1),create:async info=>{calls.push(['window.create',info]);return {id:99};},update:async(id,info)=>{calls.push(['window.update',id,info]);},remove:async id=>{calls.push(['window.remove',id]);},onFocusChanged:signal(),onRemoved:signal()},
   tabs:{query:async query=>{tabQueryCalls++;const matching=[...tabs.values()].filter(tab=>tab.windowId===query.windowId);if(focusAfterTabQuery!==undefined){focusedWindowId=focusAfterTabQuery;focusAfterTabQuery=undefined;}return matching;},get:async id=>{if(!tabs.has(id))throw Error('Tab closed');return tabs.get(id);},create:async info=>{const tab={id:50,...info};tabs.set(50,tab);calls.push(['tab.create',info]);return tab;},update:async(id,info)=>{if(!tabs.has(id))throw Error('Tab closed');Object.assign(tabs.get(id),info);calls.push(['tab.update',id,info]);return tabs.get(id);},remove:async id=>{tabs.delete(id);calls.push(['tab.remove',id]);},onActivated:signal(),onCreated:signal(),onRemoved:signal(),onMoved:signal(),onUpdated:signal(),onAttached:signal(),onDetached:signal()},
   tabGroups:{get:async id=>({id,title:'Work',color:'blue'}),update:async(id,info)=>{calls.push(['group.update',id,info]);}},
-  history:{search:async()=>[{title:'First result',url:'https://first-result.test/'}]},bookmarks:{search:async()=>[]},search:{query:async info=>{calls.push(['search',info]);}},storage:{local:{get:async defaults=>({...defaults,webSuggestions})}},action:{onClicked:signal()},commands:{onCommand:signal()}
+  history:{search:async()=>[{title:'First result',url:'https://first-result.test/'}],onVisited:signal(),onVisitRemoved:signal()},bookmarks:{search:async()=>[]},search:{query:async info=>{calls.push(['search',info]);}},storage:{local:{get:async defaults=>({...defaults,webSuggestions})}},action:{onClicked:signal()},commands:{onCommand:signal()}
 };
 await import('../extension/background.js');
 const send=(message,sender={id:'testid'})=>new Promise(resolve=>runtimeMessages.listeners[0](message,sender,resolve));
 const reconnectNative=()=>{nativePorts.at(-1)?.disconnect();chrome.runtime.onStartup.listeners[0]();return nativePorts.at(-1);};
 const nativeReady=(payload,port=nativePorts.at(-1))=>port.onMessage.listeners[0]({type:'ready',payload});
+const within=(promise,milliseconds)=>new Promise((resolve,reject)=>{
+  const timer=setTimeout(()=>reject(Error(`Search did not return within ${milliseconds}ms`)),milliseconds);
+  promise.then(value=>{clearTimeout(timer);resolve(value);},error=>{clearTimeout(timer);reject(error);});
+});
 
 test('snapshot is current normal window order, with group labels and no other-window tabs',async()=>{
   const result=await send({type:'snapshot'});
@@ -80,18 +84,149 @@ test('navigation remains in the palette source window after focus changes',async
 test('local suggestions make no remote requests until explicitly enabled',async()=>{
   const result=await send({type:'search',query:'first',requestId:1});
   assert.equal(result.requestId,1);
+  assert.equal(result.phase,'local');
+  assert.equal(result.webSuggestionsEnabled,false);
   assert.ok(result.suggestions.some(item=>item.type==='history'));
   assert.equal(webRequests,0);
   webSuggestions=true;
-  const online=await send({type:'search',query:'hello',requestId:2});
+  const local=await send({type:'search',phase:'local',query:'hello',requestId:2});
+  assert.equal(local.webSuggestionsEnabled,true);
+  assert.equal(webRequests,0,'enabling autocomplete must not hold local results for a network request');
+  const online=await send({type:'search',phase:'web',query:'hello',requestId:3});
   assert.equal(webRequests,1);
   assert.ok(online.suggestions.some(item=>item.query==='hello world'));
-  assert.equal(online.suggestions.filter(item=>item.query==='hello').length,1);
-  await send({type:'search',query:'https://private.test/?token=secret',requestId:3});
+  assert.equal(local.suggestions.filter(item=>item.query==='hello').length,1);
+  assert.equal(online.suggestions.filter(item=>item.query==='hello').length,0);
+  await send({type:'search',phase:'web',query:'https://private.test/?token=secret',requestId:4});
   assert.equal(webRequests,1);
   webPermission=false;
-  await send({type:'search',query:'private words',requestId:4});
+  await send({type:'search',phase:'web',query:'private words',requestId:5});
   assert.equal(webRequests,1);
+});
+
+test('local history results do not wait for an unresolved favicon snapshot',async t=>{
+  const originalFetch=globalThis.fetch;
+  const page='https://cold-favicon.test/page';
+  let releaseFavicon,markStarted;
+  const started=new Promise(resolve=>{markStarted=resolve;});
+  const blocked=new Promise(resolve=>{releaseFavicon=resolve;});
+  globalThis.fetch=(url,options)=>{
+    if(String(url).startsWith(own+'_favicon/')&&new URL(url).searchParams.get('pageUrl')===page){markStarted();return blocked;}
+    return originalFetch(url,options);
+  };
+  tabs.set(501,{id:501,windowId:1,index:3,title:'Cold favicon',url:page,groupId:-1});
+  const pendingSnapshot=send({type:'snapshot',sourceWindowId:1});
+  try {
+    await within(started,200);
+    const before=faviconRequests;
+    const begin=performance.now();
+    const result=await within(send({type:'search',phase:'local',query:'first',sourceWindowId:1}),200);
+    const elapsed=performance.now()-begin;
+    assert.ok(result.suggestions.some(item=>item.type==='history'));
+    assert.equal(faviconRequests,before,'search must not request favicons');
+    t.diagnostic(`Local history returned in ${elapsed.toFixed(2)}ms while favicon loading was still blocked.`);
+  } finally {
+    releaseFavicon({ok:false});
+    await pendingSnapshot;
+    tabs.delete(501);globalThis.fetch=originalFetch;
+  }
+});
+
+test('local search needs neither tab-group metadata nor favicons to deduplicate open tabs',async()=>{
+  const original=chrome.tabGroups.get;
+  let groupReads=0,release;
+  chrome.tabGroups.get=()=>{groupReads++;return new Promise(resolve=>{release=resolve;});};
+  const before=faviconRequests;
+  try {
+    const result=await within(send({type:'search',query:'first',sourceWindowId:1}),200);
+    assert.ok(result.suggestions.some(item=>item.type==='history'));
+    assert.equal(groupReads,0);
+    assert.equal(faviconRequests,before);
+  } finally {release?.({id:3,title:'Work',color:'blue'});chrome.tabGroups.get=original;}
+});
+
+test('slow optional Google suggestions cannot delay local history or bookmark results',async t=>{
+  const originalFetch=globalThis.fetch;
+  let markStarted,releaseWeb;
+  const started=new Promise(resolve=>{markStarted=resolve;});
+  const blocked=new Promise(resolve=>{releaseWeb=resolve;});
+  globalThis.fetch=(url,options)=>{
+    if(String(url).startsWith('https://suggestqueries.google.com/')){markStarted();return blocked;}
+    return originalFetch(url,options);
+  };
+  webSuggestions=true;webPermission=true;
+  const pendingWeb=send({type:'search',phase:'web',query:'first',requestId:90});
+  try {
+    await within(started,200);
+    const begin=performance.now();
+    const result=await within(send({type:'search',phase:'local',query:'first',requestId:91,sourceWindowId:1}),200);
+    assert.equal(result.requestId,91);
+    assert.equal(result.webSuggestionsEnabled,true);
+    assert.ok(result.suggestions.some(item=>item.type==='history'));
+    t.diagnostic(`Local history returned in ${(performance.now()-begin).toFixed(2)}ms while Google remained unresolved.`);
+    releaseWeb({json:async()=>['first',['first','first result']]});
+    const online=await pendingWeb;
+    assert.equal(online.phase,'web');
+    assert.ok(online.suggestions.some(item=>item.query==='first result'));
+    assert.ok(online.suggestions.every(item=>item.type==='search'));
+  } finally {
+    releaseWeb({json:async()=>['first',[]]});
+    await pendingWeb;
+    globalThis.fetch=originalFetch;webSuggestions=false;webPermission=true;
+  }
+});
+
+test('cached local history and live bookmarks return while prewarm and full history remain unresolved',async t=>{
+  const originalHistory=chrome.history.search,originalBookmarks=chrome.bookmarks.search;
+  let releaseWarm,releaseFresh,markWarm,markFresh;
+  const warmStarted=new Promise(resolve=>{markWarm=resolve;});
+  const freshStarted=new Promise(resolve=>{markFresh=resolve;});
+  const warm=new Promise(resolve=>{releaseWarm=resolve;});
+  const fresh=new Promise(resolve=>{releaseFresh=resolve;});
+  chrome.history.search=options=>{if(options.text){markFresh();return fresh;}markWarm();return warm;};
+  chrome.bookmarks.search=async()=>[{title:'First bookmark',url:'https://first-bookmark.test/'}];
+  // Mark the cache stale without deleting the existing first-result entry.
+  for(const listener of chrome.history.onVisitRemoved.listeners)listener({allHistory:false,urls:['https://unrelated.test/']});
+  const pendingFresh=send({type:'search',phase:'history',query:'first',sourceWindowId:1});
+  try {
+    await within(freshStarted,200);
+    const begin=performance.now();
+    const local=await within(send({type:'search',query:'first',sourceWindowId:1}),200);
+    await within(warmStarted,200);
+    assert.equal(local.needsHistoryRefresh,true);
+    assert.ok(local.suggestions.some(item=>item.type==='history'));
+    assert.ok(local.suggestions.some(item=>item.type==='bookmark'));
+    t.diagnostic(`Cached local rows returned in ${(performance.now()-begin).toFixed(2)}ms with both Chrome history reads blocked.`);
+    releaseFresh([{title:'First old page',url:'https://first-old-page.test/'}]);
+    const complete=await pendingFresh;
+    assert.equal(complete.phase,'history');assert.equal(complete.needsHistoryRefresh,false);
+    assert.ok(complete.suggestions.some(item=>item.url==='https://first-old-page.test/'));
+  } finally {
+    releaseWarm([{title:'First result',url:'https://first-result.test/'}]);releaseFresh([]);
+    await pendingFresh;
+    chrome.history.search=originalHistory;chrome.bookmarks.search=originalBookmarks;
+  }
+});
+
+test('history deletion after the full query completes still invalidates a response awaiting bookmarks',async()=>{
+  const originalHistory=chrome.history.search,originalBookmarks=chrome.bookmarks.search;
+  let releaseBookmarks,markRead;
+  const read=new Promise(resolve=>{markRead=resolve;});
+  chrome.history.search=async()=>{markRead();return [{title:'Deleted first',url:'https://deleted-first.test/'}];};
+  chrome.bookmarks.search=()=>new Promise(resolve=>{releaseBookmarks=resolve;});
+  const pending=send({type:'search',phase:'history',query:'first',sourceWindowId:1});
+  try {
+    await within(read,200);
+    // Let the cache service settle its read before deleting the returned URL.
+    await Promise.resolve();await Promise.resolve();
+    for(const listener of chrome.history.onVisitRemoved.listeners)listener({allHistory:false,urls:['https://deleted-first.test/']});
+    releaseBookmarks([]);
+    const response=await within(pending,200);
+    assert.equal(response.superseded,true);assert.deepEqual(response.suggestions,[]);
+  } finally {
+    releaseBookmarks?.([]);await pending;
+    chrome.history.search=originalHistory;chrome.bookmarks.search=originalBookmarks;
+  }
 });
 test('empty-window relay is removed once a real destination exists',async()=>{
   tabs.set(40,{id:40,windowId:3,index:0,url:'chrome://newtab/',active:true,groupId:-1});

@@ -1,12 +1,16 @@
 {
   "name": "tab-palette",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "type": "module",
   "description": "An Arc-inspired command palette for Google Chrome and macOS",
   "license": "MIT",
   "author": "Abner Horn",
   "repository": "github:abnerhorn/tab-palette",
-  "engines": { "node": ">=20" },
-  "scripts": { "test": "node --test tests/*.test.mjs" }
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs"
+  }
 }

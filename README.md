@@ -4,13 +4,14 @@ An Arc-inspired command bar for Chrome. Press **⌘T** to switch tabs, open a we
 
 ![Tab Palette in Chrome](media/tab-palette-demo.png)
 
-[Watch the demo](https://github.com/abnerhorn/tab-palette/releases/latest) · [Set up with an agent](docs/AGENT_SETUP.md) · [Manual setup](#manual-setup) · [Privacy](docs/PRIVACY.md)
+[Watch the demo](https://github.com/abnerhorn/tab-palette/releases/tag/v1.1.0) · [Set up with an agent](docs/AGENT_SETUP.md) · [Manual setup](#manual-setup) · [Privacy](docs/PRIVACY.md)
 
 ## How it works
 
 - Your current window’s tabs appear in browser order, with their favicons.
 - **⌘1–9**, **⌘0**, then **⌘A…** jump straight to a tab. Labels stay attached to the same tabs while you filter. ⌘T is reserved for toggling the palette.
 - Typing filters open tabs and adds suggestions from history, bookmarks, and known hostnames.
+- Recent history appears first, with older matches filled in from Chrome in the background.
 - A URL such as `github.com`, `localhost:3000`, or `https://example.com/docs` opens the website. Other text searches with your Chrome default search engine.
 - Arrow keys or **Ctrl+N / Ctrl+P** select a result; **Return** opens it; **Escape** dismisses the palette.
 
